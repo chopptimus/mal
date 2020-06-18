@@ -20,3 +20,5 @@ node_modules
 logs
 old
 tmp/
+
+impls/c/reader_test
