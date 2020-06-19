@@ -1,3 +1,4 @@
+#include "patterns.h"
 #include "reader.h"
 
 char *reader_next(struct Reader *reader)
@@ -10,4 +11,8 @@ char *reader_next(struct Reader *reader)
 char *reader_peek(struct Reader *reader)
 {
     return reader->tokens->token;
+}
+
+void tokenize(struct TokenList *tl)
+{
 }

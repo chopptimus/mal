@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <pcre.h>
 #include <stdio.h>
 #include <string.h>
 #include "reader.h"
