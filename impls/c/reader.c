@@ -1,4 +1,6 @@
-#include "patterns.h"
+#define PCRE2_CODE_UNIT_WIDTH 8
+
+#include <pcre2.h>
 #include "reader.h"
 
 char *reader_next(struct Reader *reader)

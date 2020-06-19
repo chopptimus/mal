@@ -1,8 +1,8 @@
-SRCS = step0_repl.c step1_read_print.c patterns_test.c reader_test.c
+SRCS = step0_repl.c step1_read_print.c reader_test.c
 OBJS = $(SRCS:%.c=%.o)
 BINS = $(OBJS:%.o=%)
-OTHER_OBJS = patterns.o reader.o
-OTHER_HDRS = patterns.h reader.h
+OTHER_OBJS = reader.o
+OTHER_HDRS = reader.h
 
 all: $(BINS)
 
