@@ -4,6 +4,8 @@ BINS = $(OBJS:%.o=%)
 OTHER_OBJS = reader.o
 OTHER_HDRS = reader.h
 
+LDFLAGS = -lpcre2-8
+
 all: $(BINS)
 
 dist: mal

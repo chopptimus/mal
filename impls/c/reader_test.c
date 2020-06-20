@@ -1,5 +1,7 @@
+#define PCRE2_CODE_UNIT_WIDTH 8
+
 #include <assert.h>
-#include <pcre.h>
+#include <pcre2.h>
 #include <stdio.h>
 #include <string.h>
 #include "reader.h"
@@ -39,9 +41,26 @@ void test_reader_next()
     assert(strcmp(token, "bar") == 0);
 }
 
+void test_regex()
+{
+    char *pattern = "abc";
+    pcre2_code *re = pcre2_compile(
+        (PCRE2_SPTR)pattern, PCRE2_ZERO_TERMINATED, 0,
+        NULL, NULL, NULL);
+
+    if (re == NULL) {
+        printf("Failed to compile regex\n");
+        exit(1);
+    }
+
+    pcre2_match_data *match_data;
+    match_data = pcre2_match_data_create_from_pattern(re, NULL);
+}
+
 int main()
 {
     test_reader_peek();
     test_reader_next();
+    test_regex();
     return 0;
 }
