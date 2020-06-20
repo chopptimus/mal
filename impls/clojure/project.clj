@@ -1,13 +1,10 @@
-(defproject mal "0.0.1-SNAPSHOT"
-  :description "Make-A-Lisp"
-
-  :dependencies [[org.clojure/clojure "1.10.0"]
-                 [net.n01se/clojure-jna "1.0.0"]]
-
-  ;; To run a step with correct readline behavior:
-  ;;   lein trampoline with-profile stepX run
-  ;; To generate a executable uberjar (in target/) for a step:
-  ;;   lein with-profile stepX repl
+(defproject mal "0.1.0-SNAPSHOT"
+  :description "FIXME: write description"
+  :url "http://example.com/FIXME"
+  :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
+            :url "https://www.eclipse.org/legal/epl-2.0/"}
+  :dependencies [[org.clojure/clojure "1.10.0"]]
+  :target-path "target/%s"
   :profiles {:step0 {:main mal.step0-repl
                      :uberjar-name "step0_repl.jar"
                      :aot [mal.step0-repl]}
@@ -41,4 +38,3 @@
              :stepA {:main mal.stepA-mal
                      :uberjar-name "stepA_mal.jar"
                      :aot [mal.stepA-mal]}})
-

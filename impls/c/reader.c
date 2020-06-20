@@ -18,7 +18,25 @@ char *reader_peek(struct Reader *reader)
     return reader->tokens->token;
 }
 
-int tokenize(struct TokenList *tl)
+int reader_init_pcre2(struct Pcre2State *pcre2_state)
+{
+    // pcre2_state->re = pcre2_compile(
+    //     (PCRE2_SPTR)pattern,
+    //     PCRE2_ZERO_TERMINATED,
+    //     0,
+    //     pcre2_state->errornumber,
+    //     pcre2_state->erroroffset,
+    //     NULL);
+
+    // if (!pcre2_state->re) {
+    //     return *pcre2_state->errornumber;
+    // }
+    // 
+    // pcre2_state->n = 0;
+    return 0;
+}
+
+int reader_tokenize(struct TokenList *tl)
 {
     // Ew globalness
     if (!TOKEN_REGEX) {
