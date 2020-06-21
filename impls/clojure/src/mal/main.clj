@@ -3,6 +3,8 @@
             [mal.printer :as printer]
             [mal.reader :as reader]))
 
+(def interpreter (atom {}))
+
 (defn repl
   [prompt]
   (loop []

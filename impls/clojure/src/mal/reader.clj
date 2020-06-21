@@ -1,5 +1,5 @@
 (ns mal.reader
-  (:refer-clojure :exclude [read] :rename {peek cpeek next cnext}))
+  (:refer-clojure :exclude [read] :rename {peek cpeek}))
 
 (def ^:private pattern
   #"[ ,]*(~@|[\[\]\{\}\(\)'`~^@]|\"(?:\\.|[^\\\"])*\"?|;.*|[^\s\[\]\{\}('\"`,;)]*)")
@@ -9,27 +9,28 @@
 
 (defn ->reader
   [sexp]
-  {:tokens (tokenize sexp)})
-
-(defn next
-  [reader]
-  (update reader :tokens cnext))
+  (atom (tokenize sexp)))
 
 (defn peek
   [reader]
-  (first (:tokens reader)))
+  (first @reader))
+
+(defn next!
+  [reader]
+  (let [token (peek reader)]
+    (swap! reader next)
+    token))
 
 (declare read-form)
 
 (defn- read-sequence-fn
   [closer rf]
   (fn [reader]
-    (loop [reader (next reader) forms (rf)]
+    (loop [forms (rf)]
       (if-some [token (peek reader)]
         (if (= token closer)
-          [(next reader) forms]
-          (let [result (read-form reader)]
-            (recur (first result) (rf forms (second result)))))
+          (do (next! reader) forms)
+          (recur (rf forms (read-form reader))))
         (throw (ex-info "Unexpected end of input" {}))))))
 
 (defn- list-rf
@@ -48,21 +49,16 @@
 (def ^:private read-map-unsafe (read-sequence-fn "}" vector-rf))
 (defn read-map
   [reader]
-  (let [[reader v] (read-map-unsafe reader)]
+  (let [v (read-map-unsafe reader)]
     (if (odd? (count v))
       (throw
        (ex-info "Mal map literal must contain an even number of forms" {}))
-      [reader (into {} (map vec (partition 2 v)))])))
-
-(defn- read-atom
-  [reader]
-  [(next reader) (read-string (peek reader))])
+      (into {} (map vec (partition 2 v))))))
 
 (defn- read-quoted-fn
   [sym]
   (fn [reader]
-    (let [[r form] (read-form (next reader))]
-      [r `(~sym ~form)])))
+    `(~sym ~(read-form reader))))
 
 (def ^:private read-quoted (read-quoted-fn 'quote))
 (def ^:private read-quasiquoted (read-quoted-fn 'quasiquote))
@@ -72,17 +68,17 @@
 
 (defn read-form
   [reader]
-  (case (peek reader)
-    "(" (read-list reader) 
-    "[" (read-vector reader)
-    "{" (read-map reader)
-    "'" (read-quoted reader)
-    "`" (read-quasiquoted reader)
-    "~" (read-unquoted reader)
-    "@" (read-derefed reader)
-    "~@" (read-splice-unquoted reader)
-    (read-atom reader)))
+  (let [token (next! reader)]
+    (case token
+      "(" (read-list reader) 
+      "[" (read-vector reader)
+      "{" (read-map reader)
+      "'" (read-quoted reader)
+      "`" (read-quasiquoted reader)
+      "~" (read-unquoted reader)
+      "@" (read-derefed reader)
+      "~@" (read-splice-unquoted reader)
+      (read-string token))))
 
-(defn read
-  [form]
-  (second (read-form (->reader form))))
+(defn read [s]
+  (read-form (->reader s)))
