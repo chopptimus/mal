@@ -1,84 +1,138 @@
 (ns mal.reader
-  (:refer-clojure :exclude [read] :rename {peek cpeek}))
+  (:refer-clojure :exclude [read-string] :rename {read cread})
+  (:require [clojure.java.io :as io])
+  (:import (java.lang StringBuilder)
+           (java.io PushbackReader)))
 
-(def ^:private pattern
-  #"[ ,]*(~@|[\[\]\{\}\(\)'`~^@]|\"(?:\\.|[^\\\"])*\"?|;.*|[^\s\[\]\{\}('\"`,;)]*)")
+(defn read-char
+  [rdr]
+  (let [c (.read ^java.io.PushbackReader rdr)]
+    (if (neg? c)
+      nil
+      (char c))))
 
-(defn- tokenize [s]
-  (filter seq (map second (re-seq pattern s))))
+(defn unread
+  [rdr c]
+  (when c
+    (.unread ^java.io.PushbackReader rdr (int c))))
 
-(defn ->reader
-  [sexp]
-  (atom (tokenize sexp)))
+(defn peek-char [rdr]
+  (when-let [c (read-char rdr)]
+    (unread rdr c)
+    c))
 
-(defn peek
-  [reader]
-  (first @reader))
+(defmacro do-unread
+  [rdr c]
+  `(doto ~rdr (unread ~c)))
 
-(defn next!
-  [reader]
-  (let [token (peek reader)]
-    (swap! reader next)
-    token))
+(defn ->pushback-reader
+  ([] (->pushback-reader *in*))
+  ([rdr] (PushbackReader. (io/reader rdr) 2)))
 
-(declare read-form)
+(declare read)
 
-(defn- read-sequence-fn
-  [closer rf]
-  (fn [reader]
-    (loop [forms (rf)]
-      (if-some [token (peek reader)]
-        (if (= token closer)
-          (do (next! reader) forms)
-          (recur (rf forms (read-form reader))))
-        (throw (ex-info "Unexpected end of input" {}))))))
+(defmacro read-sequence
+  [rdr closer rf]
+  `(do
+     (consume-whitespace ~rdr)
+     (loop [xs# []]
+       (if-some [c# (read-char ~rdr)]
+         (case c#
+           ~closer (~rf xs#)
+           (do (unread ~rdr c#)
+               (recur (conj xs# (read ~rdr)))))
+         (throw (ex-info "Unexpected EOF" {}))))))
 
-(defn- list-rf
-  ([] (list))
-  ([x] (list x))
-  ([xs x] (concat xs (list x))))
+(defn escaped-char [ch]
+  (case ch
+    \" \"
+    \\ \\
+    \n \newline
+    (throw (ex-info "Unsupported escape sequence" {}))))
 
-(defn- vector-rf
-  ([] [])
-  ([x] [x])
-  ([xs x] (conj xs x)))
+(defn read-string [rdr]
+  (let [sb (StringBuilder.)]
+    (loop [escaped? false]
+      (let [ch (read-char rdr)]
+        (if escaped?
+          (do (.append sb (escaped-char ch))
+              (recur false))
+          (case ch
+            nil (throw (ex-info "EOF while reading string" {}))
+            \" (str sb)
+            \\ (recur true)
+            (do (.append sb ch)
+                (recur false))))))))
 
-(def ^:private read-list (read-sequence-fn ")" list-rf))
-(def ^:private read-vector (read-sequence-fn "]" vector-rf))
+(defn consume-whitespace [rdr]
+  (when-some [c (read-char rdr)]
+    (case c
+      (\space \tab \,) (recur rdr)
+      (unread rdr c))))
 
-(def ^:private read-map-unsafe (read-sequence-fn "}" vector-rf))
-(defn read-map
-  [reader]
-  (let [v (read-map-unsafe reader)]
-    (if (odd? (count v))
-      (throw
-       (ex-info "Mal map literal must contain an even number of forms" {}))
-      (into {} (map vec (partition 2 v))))))
+(defn make-symbol [s]
+  (if (seq s)
+    (symbol s)
+    (throw (ex-info "Unexpected EOF" {}))))
 
-(defn- read-quoted-fn
-  [sym]
-  (fn [reader]
-    `(~sym ~(read-form reader))))
+(defn read-symbol [rdr]
+  (let [sb (StringBuilder.)]
+    (loop []
+      (if-some [c (read-char rdr)]
+        (case c
+          (\space \tab \, \newline) (make-symbol (str sb))
+          (\) \] \}) (do (unread rdr c)
+                         (make-symbol (str sb)))
+          (do (.append sb c)
+              (recur)))
+        (make-symbol (str sb))))))
 
-(def ^:private read-quoted (read-quoted-fn 'quote))
-(def ^:private read-quasiquoted (read-quoted-fn 'quasiquote))
-(def ^:private read-unquoted (read-quoted-fn 'unquote))
-(def ^:private read-splice-unquoted (read-quoted-fn 'splice-unquote))
-(def ^:private read-derefed (read-quoted-fn 'deref))
+(defn read-symbol-or-num [rdr]
+  (let [c (read-char rdr)]
+    (case (char c)
+      (\0 \1 \2 \3 \4 \5 \6 \7 \8 \9) (cread (do-unread rdr c))
+      \- (if-some [d (read-char rdr)]
+           (do
+             (unread rdr d)
+             (case d
+               (\0 \1 \2 \3 \4 \5 \6 \7 \8 \9) (cread (do-unread rdr c))
+               (read-symbol (do-unread rdr c))))
+           '-)
+      (read-symbol (do-unread rdr c)))))
 
-(defn read-form
-  [reader]
-  (let [token (next! reader)]
-    (case token
-      "(" (read-list reader) 
-      "[" (read-vector reader)
-      "{" (read-map reader)
-      "'" (read-quoted reader)
-      "`" (read-quasiquoted reader)
-      "~" (read-unquoted reader)
-      "@" (read-derefed reader)
-      "~@" (read-splice-unquoted reader)
-      (read-string token))))
+(defn read-unquote [rdr]
+  (let [c (read-char rdr)]
+    (if (= \@ c)
+      (list 'splice-unquote (read rdr))
+      (list 'unquote (read (do-unread rdr c))))))
 
-(defn read [s]
-  (read-form (->reader s)))
+(defn read-sexp
+  [rdr]
+  (if-some [c (read-char rdr)]
+    (case (char c)
+      \( (read-sequence rdr \) #(apply list %))
+      \[ (read-sequence rdr \] vec)
+      \{ (read-sequence rdr \} #(into {} (map vec (partition 2 %))))
+      \' (list 'quote (read rdr))
+      \` (list 'quasiquote (read rdr))
+      \~ (read-unquote rdr)
+      \@ (list 'deref (read rdr))
+      \^ (let [meta (read rdr)]
+           (list 'with-meta (read rdr) meta))
+      \" (read-string rdr)
+      (read-symbol-or-num (do-unread rdr c)))
+    (throw (ex-info "Unexpected EOF" {}))))
+
+(defn read [rdr]
+  (consume-whitespace rdr)
+  (let [sexp (read-sexp rdr)]
+    (consume-whitespace rdr)
+    sexp))
+
+(comment
+  (do
+    (require '[clojure.string :as string])
+    (require '[clojure.java.io :as io]))
+  
+  (with-open [rdr (->pushback-reader (.getBytes "( )"))]
+    (read rdr)))
