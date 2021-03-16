@@ -2,6 +2,19 @@ const std = @import("std");
 
 const readLine = @import("util.zig").readLine;
 
+const List = struct {
+    first: LispValue, rest: List
+};
+
+const LispValue = union {
+    int: i64, float: f64, bool: bool, list: *List
+};
+
+// fn recursiveDescent(alloc: *Allocator, buf: []u8) !?*LispValue {
+//     switch (buf[0]) {
+//     };
+// }
+
 fn READ(a: []u8) []u8 {
     return a;
 }
