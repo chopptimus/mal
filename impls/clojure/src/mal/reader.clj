@@ -1,5 +1,8 @@
 (ns mal.reader
-  (:refer-clojure :exclude [read-string] :rename {read cread})
+  (:refer-clojure
+   :exclude [read-string]
+   :rename {read cread
+            read-line cread-line})
   (:require [clojure.java.io :as io])
   (:import (java.lang StringBuilder)
            (java.io PushbackReader)))
@@ -120,6 +123,7 @@
       \^ (let [meta (read rdr)]
            (list 'with-meta (read rdr) meta))
       \" (read-string rdr)
+      \: (keyword (read-symbol rdr))
       (read-symbol-or-num (do-unread rdr c)))
     (throw (ex-info "Unexpected EOF" {}))))
 
@@ -129,10 +133,6 @@
     (consume-whitespace rdr)
     sexp))
 
-(comment
-  (do
-    (require '[clojure.string :as string])
-    (require '[clojure.java.io :as io]))
-  
-  (with-open [rdr (->pushback-reader (.getBytes "( )"))]
-    (read rdr)))
+(defn read-line [rdr]
+  (binding [*in* rdr]
+    (read (->pushback-reader (.getBytes (cread-line))))))

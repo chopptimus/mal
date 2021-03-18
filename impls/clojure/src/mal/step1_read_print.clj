@@ -4,9 +4,6 @@
   (:require [mal.main :refer [repl]]
             [mal.reader :as reader]))
 
-(defn read-line [_]
-  (reader/read (reader/->pushback-reader (.getBytes (cread-line)))))
-
 (defn no-map-comma-prn [value]
   (if (map? value)
     (do (print "{")
@@ -23,7 +20,7 @@
     (prn value)))
 
 (defn -main []
-  (repl {:read-fn read-line
+  (repl {:read-fn reader/read-line
          :eval-fn identity
          :print-fn no-map-comma-prn
          :prompt "user=> "}))
